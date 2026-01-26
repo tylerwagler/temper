@@ -5,8 +5,9 @@
 Temper is a lightweight, C++ based tool designed for AI clusters. It replaces `nvidia-smi` and `nvtop` by exposing deep hardware telemetry via a blazing fast HTTP JSON API, while maintaining robust thermal management capabilities.
 
 ## Features
-*   **🚀 HTTP Telemetry API**: Real-time JSON access to Clocks, PCIe, ECC, and Process data on port `3001`.
+*   **🚀 HTTP Telemetry API**: Real-time JSON access to GPUs, Host (CPU/RAM), and Chassis (Fans/Power) on port `3001`.
 *   **⚡ Zero-Latency Loop**: Native C++ event loop updates fan curves and power limits in milliseconds.
+*   **💨 Dynamic Chassis Control**: Automatically ramps chassis fans based on CPU temp or GPU "Help" requests.
 *   **🐳 Docker First**: Built to run as a privileged container alongside your AI stack.
 *   **🔐 Safety Limits**: Hard-coded thermal safety and power verification.
 

@@ -15,6 +15,23 @@ Returns a real-time snapshot of all detected NVIDIA GPUs.
 
 ```json
 {
+  "host": {
+    "cpu_load_percent": 15.4,         // System CPU usage % (double)
+    "memory_total_mb": 128000,        // Total System RAM in MB (int)
+    "memory_available_mb": 96000,     // Available System RAM in MB (int)
+    "load_avg_1m": 1.5,               // 1-minute load average (double)
+    "load_avg_5m": 1.2,               // 5-minute load average (double)
+    "uptime_seconds": 123456          // System uptime in seconds (int)
+  },
+  "chassis": {
+    "ipmi_available": true,           // Whether IPMI poll was successful (bool)
+    "inlet_temp_c": 28,               // Inlet (Ambeint) temperature in Celsius (int)
+    "exhaust_temp_c": 37,             // Exhaust temperature in Celsius (int)
+    "power_consumption_w": 294,       // Total system power draw in Watts (int)
+    "cpu_temps_c": [49, 54],          // Board/CPU temperatures per sensor (array of int)
+    "fans_rpm": [6720, 6720, ...],    // Chassis fan speeds in RPM (array of int)
+    "target_fan_percent": 38          // Chassis fan control target set by Temper (int)
+  },
   "gpus": [
     {
       "index": 0,                      // GPU Index (int)
@@ -38,16 +55,6 @@ Returns a real-time snapshot of all detected NVIDIA GPUs.
         "memory_load_percent": 45,     // Memory Controller Utilization % (int)
         "memory_used_mb": 119,         // Used VRAM in Megabytes (int)
         "memory_total_mb": 24576       // Total VRAM in Megabytes (int)
-      },
-
-      "utilization": {                 // DEPRECATED: Use resources object
-        "gpu": 98,
-        "memory": 45
-      },
-      
-      "memory": {                      // DEPRECATED: Use resources object
-        "total": 25769803776,
-        "used": 124803776
       },
       
       "clocks": {
