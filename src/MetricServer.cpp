@@ -121,14 +121,16 @@ std::string MetricServer::buildJson() const {
             << "\"power_usage_mw\":" << m.powerUsage << ","
             << "\"power_limit_mw\":" << m.powerLimit << ","
             
-            << "\"utilization\": {"
-                << "\"gpu\":" << m.utilGpu << ","
-                << "\"memory\":" << m.utilMem
+            << "\"resources\": {"
+                << "\"gpu_load_percent\":" << m.utilGpu << ","
+                << "\"memory_load_percent\":" << m.utilMem << ","
+                << "\"memory_used_mb\":" << (m.memUsed / 1024 / 1024) << ","
+                << "\"memory_total_mb\":" << (m.memTotal / 1024 / 1024)
             << "},"
-            
-            << "\"memory\": {"
-                << "\"total\":" << m.memTotal << ","
-                << "\"used\":" << m.memUsed
+
+            << "\"p_state\": {"
+                << "\"id\":" << m.pState << ","
+                << "\"description\":\"" << m.pStateDescription << "\""
             << "},"
             
             << "\"clocks\": {"
@@ -137,7 +139,9 @@ std::string MetricServer::buildJson() const {
                 << "\"sm\":" << m.clockSm << ","
                 << "\"video\":" << m.clockVideo << ","
                 << "\"max_graphics\":" << m.maxClockGraphics << ","
-                << "\"max_memory\":" << m.maxClockMemory
+                << "\"max_memory\":" << m.maxClockMemory << ","
+                << "\"max_sm\":" << m.maxClockSm << ","
+                << "\"max_video\":" << m.maxClockVideo
             << "},"
             
             << "\"pcie\": {"
@@ -163,7 +167,8 @@ std::string MetricServer::buildJson() const {
             }
         oss << "],"
 
-            << "\"throttle_alert\":\"" << m.throttleAlert << "\""
+            << "\"throttle_alert\":\"" << m.throttleAlert << "\","
+            << "\"throttle_reason_bitmask\":" << m.throttleReasonsBitmask
             << "}";
         if (i < m_latestMetrics.size() - 1) oss << ",";
     }

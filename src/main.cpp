@@ -118,6 +118,15 @@ int main(int argc, char* argv[]) {
                     m.serial = nvml.getSerial(handle);
                     m.vbios = nvml.getVbiosVersion(handle);
                     m.pState = nvml.getPowerState(handle);
+                    switch(m.pState) {
+                        case 0: m.pStateDescription = "Maximum Performance"; break;
+                        case 1: m.pStateDescription = "Performance"; break;
+                        case 2: m.pStateDescription = "Balanced"; break;
+                        case 5: m.pStateDescription = "Compute/Video"; break;
+                        case 8: m.pStateDescription = "Idle/Low Power"; break;
+                        case 15: m.pStateDescription = "Minimum Power"; break;
+                        default: m.pStateDescription = "Unknown"; break;
+                    }
 
                     m.temp = temp;
                     m.targetFan = targetFan;
@@ -136,6 +145,8 @@ int main(int argc, char* argv[]) {
                     m.clockVideo = clocks.video;
                     m.maxClockGraphics = clocks.maxGraphics;
                     m.maxClockMemory = clocks.maxMemory;
+                    m.maxClockSm = clocks.maxSm;
+                    m.maxClockVideo = clocks.maxVideo;
 
                     auto pcie = nvml.getPcieInfo(handle);
                     m.pcieTx = pcie.txThroughput;
@@ -160,6 +171,7 @@ int main(int argc, char* argv[]) {
                     unsigned long long reasons = nvml.getThrottleReasons(handle);
                     if (reasons & nvmlClocksThrottleReasonSwThermalSlowdown) m.throttleAlert = "SW Thermal Slowdown";
                     else if (reasons & nvmlClocksThrottleReasonHwSlowdown) m.throttleAlert = "HW Thermal Slowdown";
+                    m.throttleReasonsBitmask = reasons;
                     
                     currentMetrics.push_back(m);
 

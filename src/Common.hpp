@@ -5,8 +5,6 @@
 
 namespace temper {
 
-// TemperatureUnit enum removed - standardized on Celsius
-
 struct CurvePoint {
     unsigned int temp;
     unsigned int value;

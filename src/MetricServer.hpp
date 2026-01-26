@@ -21,6 +21,7 @@ struct GpuMetrics {
     std::string serial;
     std::string vbios;
     unsigned int pState;
+    std::string pStateDescription; // e.g. "Max Performance"
 
     unsigned int temp;
     unsigned int fanSpeed;      // Actual reading
@@ -41,6 +42,8 @@ struct GpuMetrics {
     unsigned int clockVideo;
     unsigned int maxClockGraphics;
     unsigned int maxClockMemory;
+    unsigned int maxClockSm;
+    unsigned int maxClockVideo;
     
     unsigned int pcieTx; // KB/s
     unsigned int pcieRx; // KB/s
@@ -54,6 +57,7 @@ struct GpuMetrics {
 
     std::vector<ProcessInfo> processes;
     std::string throttleAlert;
+    unsigned long long throttleReasonsBitmask;
 };
 
 class MetricServer {

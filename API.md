@@ -21,7 +21,10 @@ Returns a real-time snapshot of all detected NVIDIA GPUs.
       "name": "NVIDIA GeForce RTX 3090", // Model Name (string)
       "serial": "1322520097993",       // Board Serial Number (string)
       "vbios": "90.04.4A.00.08",       // Video BIOS Version (string)
-      "p_state": 0,                    // Performance State: P0 (Max) -> P15 (Min) (int)
+      "p_state": {
+        "id": 0,                       // Performance State: P0 (Max) -> P15 (Min) (int)
+        "description": "Maximum Performance" // Human readable description (string)
+      },
       
       "temperature": 42,               // Core Temperature in Celsius (int)
       "fan_speed_percent": 30,         // Current Fan Speed % (int)
@@ -30,14 +33,21 @@ Returns a real-time snapshot of all detected NVIDIA GPUs.
       "power_usage_mw": 125000,        // Current Power Draw in Milliwatts (int)
       "power_limit_mw": 350000,        // Current Power Limit in Milliwatts (int)
       
-      "utilization": {
-        "gpu": 98,                     // Compute Utilization % (int)
-        "memory": 45                   // Memory Controller Utilization % (int)
+      "resources": {
+        "gpu_load_percent": 98,        // Compute Utilization % (int)
+        "memory_load_percent": 45,     // Memory Controller Utilization % (int)
+        "memory_used_mb": 119,         // Used VRAM in Megabytes (int)
+        "memory_total_mb": 24576       // Total VRAM in Megabytes (int)
+      },
+
+      "utilization": {                 // DEPRECATED: Use resources object
+        "gpu": 98,
+        "memory": 45
       },
       
-      "memory": {
-        "total": 25769803776,          // Total VRAM in Bytes (long long)
-        "used": 124803776              // Used VRAM in Bytes (long long)
+      "memory": {                      // DEPRECATED: Use resources object
+        "total": 25769803776,
+        "used": 124803776
       },
       
       "clocks": {
@@ -45,8 +55,10 @@ Returns a real-time snapshot of all detected NVIDIA GPUs.
         "memory": 9500,                // Current Memory Clock in MHz (int)
         "sm": 1800,                    // Current SM Clock in MHz (int)
         "video": 1500,                 // Current Video Encoder Clock in MHz (int)
-        "max_graphics": 2100,          // Max Boose Clock in MHz (int)
-        "max_memory": 10000            // Max Memory Clock in MHz (int)
+        "max_graphics": 2100,          // Max Boost Graphics Clock in MHz (int)
+        "max_memory": 10000,           // Max Memory Clock in MHz (int)
+        "max_sm": 2100,                // Max SM Clock in MHz (int)
+        "max_video": 1950              // Max Video Encoder Clock in MHz (int)
       },
       
       "pcie": {
@@ -71,11 +83,26 @@ Returns a real-time snapshot of all detected NVIDIA GPUs.
         }
       ],
       
-      "throttle_alert": "SW Thermal Slowdown" // Empty string if normal, else description of throttling (string)
+      "throttle_alert": "SW Thermal Slowdown", // Empty string if normal
+      "throttle_reason_bitmask": 16            // Bitmask for specific throttle reasons (int)
     }
   ]
 }
 ```
+
+## Field Descriptions
+
+### Resources
+- **gpu_load_percent**: Calculating load
+- **memory_used_mb**: Memory usage in Megabytes for easy UI display
+
+### P-State
+- **id**: The raw NVML P-State (0-15)
+- **description**: Human readable context (e.g., "Maximum Performance", "Idle/Low Power")
+
+### Throttling
+- **throttle_alert**: A human-readable string if throttling is active (Empty string if normal)
+- **throttle_reason_bitmask**: The raw integer bitmask from NVML (useful for showing specific icons like "Power Cap" vs "Thermal")
 
 ## Notes for Frontend Implementation
 - **Polling Rate**: The C++ tool updates metrics every **100ms (10Hz)**. Polling faster than this will return cached data.
