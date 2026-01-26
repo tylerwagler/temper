@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <iostream>
 
-namespace nvml_tool {
+namespace temper {
 
 void CurveController::parseSetpoints(const std::string& setpointString) {
     points_.clear();
@@ -43,4 +43,4 @@ unsigned int CurveController::interpolate(unsigned int currentTemp) const {
     return points_.front().value;
 }
 
-} // namespace nvml_tool
+} // namespace temper

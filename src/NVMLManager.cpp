@@ -1,7 +1,7 @@
 #include "NVMLManager.hpp"
 #include <iostream>
 
-namespace nvml_tool {
+namespace temper {
 
 NVMLManager::NVMLManager() {
     checkResult(nvmlInit(), "Initialize NVML");
@@ -219,4 +219,4 @@ void NVMLManager::checkResult(nvmlReturn_t result, const std::string& action) co
     }
 }
 
-} // namespace nvml_tool
+} // namespace temper

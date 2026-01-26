@@ -6,7 +6,7 @@
 #include <vector>
 #include <stdexcept>
 
-namespace nvml_tool {
+namespace temper {
 
 class NVMLManager {
 public:
@@ -78,4 +78,4 @@ private:
     void checkResult(nvmlReturn_t result, const std::string& action) const;
 };
 
-} // namespace nvml_tool
+} // namespace temper

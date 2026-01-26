@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-namespace nvml_tool {
+namespace temper {
 
 // TemperatureUnit enum removed - standardized on Celsius
 
@@ -20,4 +20,4 @@ static constexpr int MAX_DEVICES = 64;
 static constexpr int MAX_NAME_LEN = 256;
 static constexpr int MAX_SETPOINTS = 16;
 
-} // namespace nvml_tool
+} // namespace temper

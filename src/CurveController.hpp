@@ -4,7 +4,7 @@
 #include <vector>
 #include <string>
 
-namespace nvml_tool {
+namespace temper {
 
 class CurveController {
 public:
@@ -20,4 +20,4 @@ private:
     std::vector<CurvePoint> points_;
 };
 
-} // namespace nvml_tool
+} // namespace temper

@@ -7,7 +7,7 @@
 #include <atomic>
 #include <map>
 
-namespace nvml_tool {
+namespace temper {
 
 struct ProcessInfo {
     unsigned int pid;
@@ -79,4 +79,4 @@ private:
     mutable std::mutex m_metricsMutex;
 };
 
-} // namespace nvml_tool
+} // namespace temper

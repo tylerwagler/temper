@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-namespace nvml_tool {
+namespace temper {
 
 class IpmiController {
 public:
@@ -20,4 +20,4 @@ private:
     void executeRaw(const std::string& rawCommand);
 };
 
-} // namespace nvml_tool
+} // namespace temper

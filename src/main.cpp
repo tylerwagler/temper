@@ -11,7 +11,7 @@
 #include "CurveController.hpp"
 #include "IpmiController.hpp"
 
-using namespace nvml_tool;
+using namespace temper;
 
 // Global state for signal handling
 static volatile std::sig_atomic_t g_running = 1;

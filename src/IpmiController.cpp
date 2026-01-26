@@ -3,7 +3,7 @@
 #include <iostream>
 #include <sstream>
 
-namespace nvml_tool {
+namespace temper {
 
 IpmiController::IpmiController() {
     const char* h = std::getenv("IDRAC_IP");
@@ -55,4 +55,4 @@ void IpmiController::executeRaw(const std::string& rawCommand) {
     }
 }
 
-} // namespace nvml_tool
+} // namespace temper

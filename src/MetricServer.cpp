@@ -7,7 +7,7 @@
 #include <cstring>
 #include <fcntl.h>
 
-namespace nvml_tool {
+namespace temper {
 
 MetricServer::MetricServer(int port) : m_port(port), m_serverSocket(-1), m_running(false) {}
 
@@ -171,4 +171,4 @@ std::string MetricServer::buildJson() const {
     return oss.str();
 }
 
-} // namespace nvml_tool
+} // namespace temper
