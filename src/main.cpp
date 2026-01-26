@@ -178,7 +178,7 @@ int main(int argc, char* argv[]) {
                 if (verbose && isatty(STDOUT_FILENO)) {
                     std::cout << "\033[" << (g_devices.size() + (ipmi.isEnabled() ? 1 : 0)) << "A" << std::flush;
                 }
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
             }
         } else {
              std::cout << "Command '" << command << "' not fully implemented in C++ yet (Try fanctl)." << std::endl;

@@ -78,7 +78,7 @@ Returns a real-time snapshot of all detected NVIDIA GPUs.
 ```
 
 ## Notes for Frontend Implementation
-- **Polling Rate**: The C++ tool updates metrics every **10ms (100Hz)**. Polling faster than this will return cached data.
+- **Polling Rate**: The C++ tool updates metrics every **100ms (10Hz)**. Polling faster than this will return cached data.
 - **Units**:
     - Power is in **milliwatts** (mW). Divide by 1000 for Watts.
     - Throughput is in **kilobytes/sec** (KB/s).
