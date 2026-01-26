@@ -71,6 +71,7 @@ int main(int argc, char* argv[]) {
             std::cout << "Starting dynamic C++ control for " << count << " device(s)" << std::endl;
             
             IpmiController ipmi;
+            bool verbose = (std::getenv("VERBOSE") != nullptr);
 
             while (g_running) {
                 unsigned int maxTemp = 0;
@@ -162,7 +163,7 @@ int main(int argc, char* argv[]) {
                     
                     currentMetrics.push_back(m);
 
-                    std::cout << "[" << i << "] Temp: " << temp << "C \tFan: " << targetFan << "%" << powerStr << std::endl;
+                    if (verbose) std::cout << "[" << i << "] Temp: " << temp << "C \tFan: " << targetFan << "%" << powerStr << std::endl;
                 }
                 
                 // Push to server
@@ -171,13 +172,13 @@ int main(int argc, char* argv[]) {
                 if (ipmi.isEnabled()) {
                     unsigned int chassisFan = fanCurve.interpolate(maxTemp);
                     ipmi.setChassisFanSpeed(chassisFan);
-                    std::cout << "[Chassis] Max Temp: " << maxTemp << "C \tFan: " << chassisFan << "%" << std::endl;
+                    if (verbose) std::cout << "[Chassis] Max Temp: " << maxTemp << "C \tFan: " << chassisFan << "%" << std::endl;
                 }
 
-                if (isatty(STDOUT_FILENO)) {
+                if (verbose && isatty(STDOUT_FILENO)) {
                     std::cout << "\033[" << (g_devices.size() + (ipmi.isEnabled() ? 1 : 0)) << "A" << std::flush;
                 }
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
         } else {
              std::cout << "Command '" << command << "' not fully implemented in C++ yet (Try fanctl)." << std::endl;

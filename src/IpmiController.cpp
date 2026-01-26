@@ -37,11 +37,12 @@ void IpmiController::executeRaw(const std::string& rawCommand) {
     
     // -N 1: 1 second timeout for LAN interface
     // -R 1: 1 retry
+    // Run in background (&) to avoid blocking the main loop
     std::string cmd = "ipmitool -I lanplus -H " + host_ + 
                       " -U " + user_ + 
                       " -P " + pass_ + 
                       " -N 1 -R 1" +
-                      " raw " + rawCommand + " > /dev/null 2>&1";
+                      " raw " + rawCommand + " > /dev/null 2>&1 &";
     
     int res = std::system(cmd.c_str());
     if (res != 0) {
