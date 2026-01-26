@@ -10,6 +10,7 @@
 #include "NVMLManager.hpp"
 #include "CurveController.hpp"
 #include "IpmiController.hpp"
+#include "HostMonitor.hpp"
 
 using namespace temper;
 
@@ -37,6 +38,7 @@ int main(int argc, char* argv[]) {
 
         CurveController fanCurve;
         CurveController powerCurve;
+        CurveController chassisCurve;
         
         // Start Metric Server
         MetricServer server(3001);
@@ -44,7 +46,7 @@ int main(int argc, char* argv[]) {
         server.start();
 
         if (argc < 2) {
-            std::cerr << "Usage: nvml-tool <command> [args...]" << std::endl;
+            std::cerr << "Usage: temper <command> [args...]" << std::endl;
             return 1;
         }
 
@@ -60,6 +62,13 @@ int main(int argc, char* argv[]) {
             const char* pEnv = std::getenv("POWER_SETPOINTS");
             if (pEnv) powerCurve.parseSetpoints(pEnv);
 
+            const char* cEnv = std::getenv("CHASSIS_FAN_SETPOINTS");
+            if (cEnv) {
+                chassisCurve.parseSetpoints(cEnv);
+            } else {
+                chassisCurve.parseSetpoints(fanArgs); // Default to GPU curve
+            }
+
             unsigned int count = nvml.getDeviceCount();
             for (unsigned int i = 0; i < count; ++i) {
                 g_devices.push_back(nvml.getHandle(i));
@@ -70,10 +79,42 @@ int main(int argc, char* argv[]) {
 
             std::cout << "Starting dynamic C++ control for " << count << " device(s)" << std::endl;
             
+            // IPMI Controller
             IpmiController ipmi;
+            char* idracIp = std::getenv("IDRAC_IP");
+            char* idracUser = std::getenv("IDRAC_USER");
+            char* idracPass = std::getenv("IDRAC_PASS");
+            
+            if (idracIp && idracUser && idracPass) {
+                ipmi.init(idracIp, idracUser, idracPass);
+                if (std::getenv("IDRAC_SSH") != nullptr) {
+                    ipmi.setUseSsh(true);
+                }
+            }
+
+            // Host Monitor
+            HostMonitor hostMonitor;
+
             bool verbose = (std::getenv("VERBOSE") != nullptr);
+            int loopCounter = 0;
+            unsigned int lastChassisFan = 0;
 
             while (g_running) {
+                loopCounter++;
+
+                // 1. Poll Host Metrics (Fast)
+                hostMonitor.update();
+                HostMetrics hostMetrics = hostMonitor.getMetrics();
+
+                // 2. Poll IPMI Metrics (Slow - Async)
+                // Run at startup, then every 300 loops (30 seconds)
+                if ((loopCounter == 1 || loopCounter % 300 == 0) && ipmi.isEnabled() && !ipmi.isPolling()) {
+                    std::thread([&ipmi]() { ipmi.pollMetrics(); }).detach();
+                }
+                IpmiMetrics ipmiMetrics = ipmi.getMetrics();
+                ipmiMetrics.targetFanSpeed = lastChassisFan;
+
+                // 3. Poll NVML Metrics
                 unsigned int maxTemp = 0;
                 std::vector<GpuMetrics> currentMetrics;
 
@@ -101,10 +142,7 @@ int main(int argc, char* argv[]) {
                         }
 
                         nvml.setPowerLimit(handle, targetPower);
-                        currentPowerLimit = targetPower * 1000; // Convert back to mW for internal consistency if needed, but setPowerLimit takes W? 
-                        // Actually setPowerLimit definition in wrapper takes Watts. 
-                        // So currentPowerLimit (mW) = targetPower * 1000
-                        currentPowerLimit = targetPower * 1000; 
+                        currentPowerLimit = targetPower * 1000;
 
                         powerStr = "\tPower: " + std::to_string(targetPower) + "W" + (alert.empty() ? "" : " " + alert);
                     } else {
@@ -166,8 +204,6 @@ int main(int argc, char* argv[]) {
                     }
 
                     // Throttle Check
-                    
-                    // Throttle Check
                     unsigned long long reasons = nvml.getThrottleReasons(handle);
                     if (reasons & nvmlClocksThrottleReasonSwThermalSlowdown) m.throttleAlert = "SW Thermal Slowdown";
                     else if (reasons & nvmlClocksThrottleReasonHwSlowdown) m.throttleAlert = "HW Thermal Slowdown";
@@ -178,13 +214,37 @@ int main(int argc, char* argv[]) {
                     if (verbose) std::cout << "[" << i << "] Temp: " << temp << "C \tFan: " << targetFan << "%" << powerStr << std::endl;
                 }
                 
-                // Push to server
-                server.updateMetrics(currentMetrics);
+                // Push unified metrics to server
+                server.updateMetrics(currentMetrics, hostMetrics, ipmiMetrics);
                 
                 if (ipmi.isEnabled()) {
-                    unsigned int chassisFan = fanCurve.interpolate(maxTemp);
-                    ipmi.setChassisFanSpeed(chassisFan);
-                    if (verbose) std::cout << "[Chassis] Max Temp: " << maxTemp << "C \tFan: " << chassisFan << "%" << std::endl;
+                    // Only update chassis fan every 100 loops (10 seconds)
+                    if (loopCounter % 100 == 0) {
+                        unsigned int cpuMaxTemp = 0;
+                        for (unsigned int cpuT : ipmiMetrics.cpuTemps) {
+                            if (cpuT > cpuMaxTemp) cpuMaxTemp = cpuT;
+                        }
+
+                        bool gpuStruggling = false;
+                        for (const auto& m : currentMetrics) {
+                            if (m.fanSpeed >= 95 || (m.throttleReasonsBitmask & (nvmlClocksThrottleReasonSwThermalSlowdown | nvmlClocksThrottleReasonHwSlowdown))) {
+                                gpuStruggling = true;
+                                break;
+                            }
+                        }
+
+                        unsigned int targetTemp = cpuMaxTemp;
+                        std::string source = "CPU";
+                        if (gpuStruggling && maxTemp > targetTemp) {
+                            targetTemp = maxTemp;
+                            source = "GPU (Help Mode)";
+                        }
+
+                        unsigned int chassisFan = chassisCurve.interpolate(targetTemp);
+                        lastChassisFan = chassisFan;
+                        ipmi.setChassisFanSpeed(chassisFan);
+                        if (verbose) std::cout << "[Chassis] " << source << " Max Temp: " << targetTemp << "C \tFan: " << chassisFan << "%" << std::endl;
+                    }
                 }
 
                 if (verbose && isatty(STDOUT_FILENO)) {

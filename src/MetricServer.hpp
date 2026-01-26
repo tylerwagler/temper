@@ -7,6 +7,9 @@
 #include <atomic>
 #include <map>
 
+#include "HostMonitor.hpp" // New Include
+#include "IpmiController.hpp" // New Include
+
 namespace temper {
 
 struct ProcessInfo {
@@ -21,19 +24,19 @@ struct GpuMetrics {
     std::string serial;
     std::string vbios;
     unsigned int pState;
-    std::string pStateDescription; // e.g. "Max Performance"
+    std::string pStateDescription; 
 
     unsigned int temp;
-    unsigned int fanSpeed;      // Actual reading
-    unsigned int targetFan;     // What we set it to
-    unsigned int powerUsage;    // mW
-    unsigned int powerLimit;    // mW
+    unsigned int fanSpeed;      
+    unsigned int targetFan;     
+    unsigned int powerUsage;    
+    unsigned int powerLimit;    
     
-    unsigned int utilGpu;       // %
-    unsigned int utilMem;       // %
+    unsigned int utilGpu;       
+    unsigned int utilMem;       
     
-    unsigned long long memTotal; // Bytes
-    unsigned long long memUsed;  // Bytes
+    unsigned long long memTotal; 
+    unsigned long long memUsed;  
     
     // Advanced
     unsigned int clockGraphics;
@@ -45,8 +48,8 @@ struct GpuMetrics {
     unsigned int maxClockSm;
     unsigned int maxClockVideo;
     
-    unsigned int pcieTx; // KB/s
-    unsigned int pcieRx; // KB/s
+    unsigned int pcieTx; 
+    unsigned int pcieRx; 
     unsigned int pcieGen;
     unsigned int pcieWidth;
     
@@ -67,20 +70,29 @@ public:
 
     void start();
     void stop();
-    void updateMetrics(const std::vector<GpuMetrics>& metrics);
+    // Updated Signature
+    void updateMetrics(const std::vector<GpuMetrics>& metrics, const HostMetrics& host, const IpmiMetrics& ipmi);
 
 private:
-    void serverLoop();
-    void handleClient(int clientSocket);
-    std::string buildJson() const;
+    void loop(); // Was serverLoop but cpp uses loop()
+    // handleClient was in hpp but not in cpp implementation provided earlier? 
+    // The cpp implementation provided earlier used a single loop method. 
+    // To match the cpp I wrote in step 4306, I should stick to that interface.
+    // The cpp I wrote uses `start` -> `loop` thread.
+    // And `updateMetrics` updates `m_cachedJson`.
+    
+    // Check cpp implementation again? 
+    // Step 4306: MetricServer::loop() { ... select() ... }
+    // It does not use handleClient or serverLoop names. it uses `loop`.
+    
+    std::string buildJson(const std::vector<GpuMetrics>& metrics, const HostMetrics& host, const IpmiMetrics& ipmi);
 
     int m_port;
-    int m_serverSocket;
     std::atomic<bool> m_running;
-    std::thread m_serverThread;
+    std::thread m_thread;
 
-    std::vector<GpuMetrics> m_latestMetrics;
-    mutable std::mutex m_metricsMutex;
+    std::string m_cachedJson;
+    mutable std::mutex m_mutex;
 };
 
 } // namespace temper

@@ -19,7 +19,7 @@ SRCDIR = src
 BUILDDIR = build
 
 TARGET = $(BUILDDIR)/temper
-SOURCES = $(SRCDIR)/main.cpp $(SRCDIR)/NVMLManager.cpp $(SRCDIR)/CurveController.cpp $(SRCDIR)/IpmiController.cpp $(SRCDIR)/MetricServer.cpp
+SOURCES = $(SRCDIR)/main.cpp $(SRCDIR)/NVMLManager.cpp $(SRCDIR)/CurveController.cpp $(SRCDIR)/IpmiController.cpp $(SRCDIR)/MetricServer.cpp $(SRCDIR)/HostMonitor.cpp
 OBJECTS = $(SOURCES:$(SRCDIR)/%.cpp=$(BUILDDIR)/%.o)
 
 all: $(TARGET)

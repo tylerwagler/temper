@@ -1,123 +1,90 @@
 #include "MetricServer.hpp"
-#include <iostream>
-#include <sstream>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
+#include <sstream>
+#include <iostream>
 #include <cstring>
-#include <fcntl.h>
+#include <thread>
+#include <algorithm>
 
 namespace temper {
 
-MetricServer::MetricServer(int port) : m_port(port), m_serverSocket(-1), m_running(false) {}
+MetricServer::MetricServer(int port) : m_port(port), m_running(false), m_cachedJson("{}") {}
 
 MetricServer::~MetricServer() {
     stop();
 }
 
 void MetricServer::start() {
-    m_serverSocket = socket(AF_INET, SOCK_STREAM, 0);
-    if (m_serverSocket < 0) {
-        std::cerr << "Failed to create socket" << std::endl;
-        return;
-    }
-
-    // Allow address reuse
-    int opt = 1;
-    setsockopt(m_serverSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-
-    struct sockaddr_in address;
-    address.sin_family = AF_INET;
-    address.sin_addr.s_addr = INADDR_ANY;
-    address.sin_port = htons(m_port);
-
-    if (bind(m_serverSocket, (struct sockaddr*)&address, sizeof(address)) < 0) {
-        std::cerr << "Failed to bind to port " << m_port << std::endl;
-        close(m_serverSocket);
-        return;
-    }
-
-    if (listen(m_serverSocket, 3) < 0) {
-        std::cerr << "Failed to listen on socket" << std::endl;
-        close(m_serverSocket);
-        return;
-    }
-
     m_running = true;
-    m_serverThread = std::thread(&MetricServer::serverLoop, this);
+    m_thread = std::thread(&MetricServer::loop, this);
     std::cout << "Metric Server started on port " << m_port << std::endl;
 }
 
 void MetricServer::stop() {
     m_running = false;
-    if (m_serverSocket >= 0) {
-        shutdown(m_serverSocket, SHUT_RDWR);
-        close(m_serverSocket);
-        m_serverSocket = -1;
-    }
-    if (m_serverThread.joinable()) {
-        m_serverThread.join();
+    if (m_thread.joinable()) {
+        m_thread.join();
     }
 }
 
-void MetricServer::updateMetrics(const std::vector<GpuMetrics>& metrics) {
-    std::lock_guard<std::mutex> lock(m_metricsMutex);
-    m_latestMetrics = metrics;
+void MetricServer::updateMetrics(const std::vector<GpuMetrics>& metrics, const HostMetrics& host, const IpmiMetrics& ipmi) {
+    std::string json = buildJson(metrics, host, ipmi);
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_cachedJson = json;
 }
 
-void MetricServer::serverLoop() {
-    while (m_running) {
-        struct sockaddr_in clientAddress;
-        socklen_t addrLen = sizeof(clientAddress);
-        int clientSocket = accept(m_serverSocket, (struct sockaddr*)&clientAddress, &addrLen);
+std::string MetricServer::buildJson(const std::vector<GpuMetrics>& metrics, const HostMetrics& host, const IpmiMetrics& ipmi) {
+    std::stringstream oss;
+    oss << "{"
+        << "\"host\": {"
+            << "\"cpu_load_percent\":" << host.cpuUsagePercent << ","
+            << "\"memory_total_mb\":" << (host.memTotal / 1024 / 1024) << ","
+            << "\"memory_available_mb\":" << (host.memAvailable / 1024 / 1024) << ","
+            << "\"load_avg_1m\":" << host.loadAvg1m << ","
+            << "\"load_avg_5m\":" << host.loadAvg5m << ","
+            << "\"uptime_seconds\":" << host.uptime
+        << "},";
         
-        if (clientSocket < 0) {
-            if (m_running) {
-                // If running, this might be a real error or just a timeout/interrupt
-                // std::cerr << "Accept failed" << std::endl; 
-            }
-            continue;
-        }
-
-        handleClient(clientSocket);
-    }
-}
-
-void MetricServer::handleClient(int clientSocket) {
-    // Read request (we ignore content, just assume GET)
-    char buffer[1024] = {0};
-    read(clientSocket, buffer, 1024);
-
-    std::string json = buildJson();
-
-    std::string response = "HTTP/1.1 200 OK\r\n"
-                           "Content-Type: application/json\r\n"
-                           "Access-Control-Allow-Origin: *\r\n"
-                           "Content-Length: " + std::to_string(json.length()) + "\r\n"
-                           "\r\n" +
-                           json;
-
-    send(clientSocket, response.c_str(), response.length(), 0);
-    close(clientSocket);
-}
-
-std::string MetricServer::buildJson() const {
-    std::lock_guard<std::mutex> lock(m_metricsMutex);
-    std::ostringstream oss;
-    oss << "{\"gpus\":[";
+    oss << "\"chassis\": {"
+            << "\"ipmi_available\":" << (ipmi.available ? "true" : "false") << ",";
     
-    for (size_t i = 0; i < m_latestMetrics.size(); ++i) {
-        const auto& m = m_latestMetrics[i];
+    if (ipmi.available) {
+        oss << "\"inlet_temp_c\":" << ipmi.inletTemp << ","
+            << "\"exhaust_temp_c\":" << ipmi.exhaustTemp << ","
+            << "\"power_consumption_w\":" << ipmi.powerConsumption << ","
+            << "\"cpu_temps_c\": [";
+            for (size_t i = 0; i < ipmi.cpuTemps.size(); ++i) {
+                oss << ipmi.cpuTemps[i];
+                if (i < ipmi.cpuTemps.size() - 1) oss << ",";
+            }
+        oss << "],"
+            << "\"fans_rpm\": [";
+            for (size_t i = 0; i < ipmi.fanSpeeds.size(); ++i) {
+                oss << ipmi.fanSpeeds[i];
+                if (i < ipmi.fanSpeeds.size() - 1) oss << ",";
+            }
+        oss << "],"
+            << "\"target_fan_percent\":" << ipmi.targetFanSpeed;
+    } else {
+         oss << "\"error\": \"Query timed out or connection failed\"";
+    }
+    oss << "},";
+
+    oss << "\"gpus\": [";
+    for (size_t i = 0; i < metrics.size(); ++i) {
+        const auto& m = metrics[i];
         oss << "{"
             << "\"index\":" << m.index << ","
             << "\"name\":\"" << m.name << "\","
             << "\"serial\":\"" << m.serial << "\","
             << "\"vbios\":\"" << m.vbios << "\","
-            << "\"p_state\":" << m.pState << ","
             
             << "\"temperature\":" << m.temp << ","
             << "\"fan_speed_percent\":" << m.fanSpeed << ","
             << "\"target_fan_percent\":" << m.targetFan << ","
+            
             << "\"power_usage_mw\":" << m.powerUsage << ","
             << "\"power_limit_mw\":" << m.powerLimit << ","
             
@@ -128,7 +95,7 @@ std::string MetricServer::buildJson() const {
                 << "\"memory_total_mb\":" << (m.memTotal / 1024 / 1024)
             << "},"
 
-            << "\"p_state\": {"
+             << "\"p_state\": {"
                 << "\"id\":" << m.pState << ","
                 << "\"description\":\"" << m.pStateDescription << "\""
             << "},"
@@ -150,7 +117,7 @@ std::string MetricServer::buildJson() const {
                 << "\"gen\":" << m.pcieGen << ","
                 << "\"width\":" << m.pcieWidth
             << "},"
-            
+
             << "\"ecc\": {"
                 << "\"volatile_single\":" << m.eccVolatileSingle << ","
                 << "\"volatile_double\":" << m.eccVolatileDouble << ","
@@ -160,9 +127,11 @@ std::string MetricServer::buildJson() const {
 
             << "\"processes\": [";
             for (size_t j = 0; j < m.processes.size(); ++j) {
-                oss << "{\"pid\":" << m.processes[j].pid 
-                    << ",\"used_memory\":" << m.processes[j].usedMemory
-                    << ",\"name\":\"" << m.processes[j].name << "\"}";
+                oss << "{"
+                    << "\"pid\":" << m.processes[j].pid << ","
+                    << "\"name\":\"" << m.processes[j].name << "\","
+                    << "\"used_memory\":" << m.processes[j].usedMemory
+                    << "}";
                 if (j < m.processes.size() - 1) oss << ",";
             }
         oss << "],"
@@ -170,10 +139,76 @@ std::string MetricServer::buildJson() const {
             << "\"throttle_alert\":\"" << m.throttleAlert << "\","
             << "\"throttle_reason_bitmask\":" << m.throttleReasonsBitmask
             << "}";
-        if (i < m_latestMetrics.size() - 1) oss << ",";
+        if (i < metrics.size() - 1) oss << ",";
     }
     oss << "]}";
     return oss.str();
+}
+
+void MetricServer::loop() {
+    int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd == 0) {
+        std::cerr << "Socket creation failed" << std::endl;
+        return;
+    }
+
+    int opt = 1;
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt));
+
+    struct sockaddr_in address;
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = INADDR_ANY;
+    address.sin_port = htons(m_port);
+
+    if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
+        std::cerr << "Bind failed" << std::endl;
+        close(server_fd);
+        return;
+    }
+
+    if (listen(server_fd, 3) < 0) {
+        std::cerr << "Listen failed" << std::endl;
+        close(server_fd);
+        return;
+    }
+
+    while (m_running) {
+        fd_set readfds;
+        FD_ZERO(&readfds);
+        FD_SET(server_fd, &readfds);
+
+        struct timeval timeout;
+        timeout.tv_sec = 1;
+        timeout.tv_usec = 0;
+
+        int activity = select(server_fd + 1, &readfds, NULL, NULL, &timeout);
+
+        if (activity < 0) continue;
+
+        if (FD_ISSET(server_fd, &readfds)) {
+            socklen_t addrlen = sizeof(address);
+            int new_socket = accept(server_fd, (struct sockaddr *)&address, &addrlen);
+            if (new_socket < 0) continue;
+
+            std::string body;
+            {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                body = m_cachedJson;
+            }
+
+            std::string response = 
+                "HTTP/1.1 200 OK\r\n"
+                "Content-Type: application/json\r\n"
+                "Access-Control-Allow-Origin: *\r\n"
+                "Content-Length: " + std::to_string(body.length()) + "\r\n"
+                "\r\n" + 
+                body;
+
+            send(new_socket, response.c_str(), response.length(), 0);
+            close(new_socket);
+        }
+    }
+    close(server_fd);
 }
 
 } // namespace temper
