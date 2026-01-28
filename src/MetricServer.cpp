@@ -41,6 +41,7 @@ std::string MetricServer::buildJson(const std::vector<GpuMetrics>& metrics, cons
     std::stringstream oss;
     oss << "{"
         << "\"host\": {"
+            << "\"hostname\":\"" << host.hostname << "\","
             << "\"cpu_load_percent\":" << host.cpuUsagePercent << ","
             << "\"memory_total_mb\":" << (host.memTotal / 1024 / 1024) << ","
             << "\"memory_available_mb\":" << (host.memAvailable / 1024 / 1024) << ","
@@ -138,7 +139,11 @@ std::string MetricServer::buildJson(const std::vector<GpuMetrics>& metrics, cons
                 if (i < ipmi.fanSpeeds.size() - 1) oss << ",";
             }
         oss << "],"
-            << "\"target_fan_percent\":" << ipmi.targetFanSpeed;
+            << "\"target_fan_percent\":" << ipmi.targetFanSpeed << ","
+            << "\"psu1_current_a\":" << ipmi.psu1Current << ","
+            << "\"psu2_current_a\":" << ipmi.psu2Current << ","
+            << "\"psu1_voltage_v\":" << ipmi.psu1Voltage << ","
+            << "\"psu2_voltage_v\":" << ipmi.psu2Voltage;
     } else {
          oss << "\"error\": \"Query timed out or connection failed\"";
     }

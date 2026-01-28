@@ -86,6 +86,23 @@ std::pair<int, std::string> LlamaMonitor::executeCurl(const std::string& url, in
     return { res.exitCode, res.stdOut };
 }
 
+// URL encode string for use in query parameters
+static std::string urlEncode(const std::string& str) {
+    std::string encoded;
+    for (unsigned char c : str) {
+        if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
+            encoded += c;
+        } else if (c == ' ') {
+            encoded += "%20";
+        } else {
+            char hex[4];
+            snprintf(hex, sizeof(hex), "%%%02X", c);
+            encoded += hex;
+        }
+    }
+    return encoded;
+}
+
 static double parseMetric(const std::string& input, const std::string& key) {
     // Search for the metric line (not in comments)
     // Format: "key value" or "key{labels} value"
@@ -274,13 +291,20 @@ void LlamaMonitor::checkStatus() {
              if (foundLoading) {
                  m.status = LlamaStatus::LOADING;
                  m.modelName = detectedId + " (Loading)";
+                 if (std::getenv("VERBOSE")) {
+                     std::cout << "[Llama] Model loading: " << detectedId << std::endl;
+                 }
              } else {
                  // Loaded.
                  m.status = LlamaStatus::READY;
                  m.modelName = detectedId;
 
+                 if (std::getenv("VERBOSE")) {
+                     std::cout << "[Llama] Model loaded: " << detectedId << std::endl;
+                 }
+
                  // Poll Slots
-                 std::string slotsUrl = baseUrl + "/slots?model=" + detectedId;
+                 std::string slotsUrl = baseUrl + "/slots?model=" + urlEncode(detectedId);
                  auto slotsRes = executeCurl(slotsUrl, 10); // 10s timeout
             
                  if (slotsRes.first == 0) {
@@ -388,8 +412,12 @@ void LlamaMonitor::checkStatus() {
                           slotPos = endPos;
                       }
 
+                      if (std::getenv("VERBOSE")) {
+                          std::cout << "[Llama] Parsed " << m.slots.size() << " slots" << std::endl;
+                      }
+
                       // Poll Metrics endpoint for global stats
-                      std::string metricsUrl = baseUrl + "/metrics?model=" + detectedId;
+                      std::string metricsUrl = baseUrl + "/metrics?model=" + urlEncode(detectedId);
                       auto metricsRes = executeCurl(metricsUrl, 10);
                       if (metricsRes.first == 0) {
                           const std::string& s = metricsRes.second;
@@ -409,7 +437,7 @@ void LlamaMonitor::checkStatus() {
                       }
                  
                       // Poll Props
-                      std::string propsUrl = baseUrl + "/props?model=" + detectedId;
+                      std::string propsUrl = baseUrl + "/props?model=" + urlEncode(detectedId);
                       auto propsRes = executeCurl(propsUrl, 2); 
                       if (propsRes.first == 0) {
                           const std::string& ps = propsRes.second;

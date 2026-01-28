@@ -9,6 +9,7 @@
 
 #include "HostMonitor.hpp" // New Include
 #include "IpmiController.hpp" // New Include
+#include "LlamaMonitor.hpp" // New Include
 
 namespace temper {
 
@@ -71,7 +72,7 @@ public:
     void start();
     void stop();
     // Updated Signature
-    void updateMetrics(const std::vector<GpuMetrics>& metrics, const HostMetrics& host, const IpmiMetrics& ipmi);
+    void updateMetrics(const std::vector<GpuMetrics>& metrics, const HostMetrics& host, const IpmiMetrics& ipmi, const LlamaMetrics& llama);
 
 private:
     void loop(); // Was serverLoop but cpp uses loop()
@@ -85,7 +86,7 @@ private:
     // Step 4306: MetricServer::loop() { ... select() ... }
     // It does not use handleClient or serverLoop names. it uses `loop`.
     
-    std::string buildJson(const std::vector<GpuMetrics>& metrics, const HostMetrics& host, const IpmiMetrics& ipmi);
+    std::string buildJson(const std::vector<GpuMetrics>& metrics, const HostMetrics& host, const IpmiMetrics& ipmi, const LlamaMetrics& llama);
 
     int m_port;
     std::atomic<bool> m_running;

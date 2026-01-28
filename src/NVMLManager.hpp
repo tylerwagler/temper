@@ -22,34 +22,34 @@ public:
     std::string getUUID(nvmlDevice_t handle) const;
     
     struct Clocks {
-        unsigned int graphics;
-        unsigned int memory;
-        unsigned int sm;
-        unsigned int video;
-        unsigned int maxGraphics;
-        unsigned int maxMemory;
-        unsigned int maxSm;
-        unsigned int maxVideo;
+        unsigned int graphics = 0;
+        unsigned int memory = 0;
+        unsigned int sm = 0;
+        unsigned int video = 0;
+        unsigned int maxGraphics = 0;
+        unsigned int maxMemory = 0;
+        unsigned int maxSm = 0;
+        unsigned int maxVideo = 0;
     };
     
     struct PcieInfo {
-        unsigned int txThroughput; // KB/s
-        unsigned int rxThroughput; // KB/s
-        unsigned int gen;
-        unsigned int width;
+        unsigned int txThroughput = 0; // KB/s
+        unsigned int rxThroughput = 0; // KB/s
+        unsigned int gen = 0;
+        unsigned int width = 0;
     };
 
     struct EccCounts {
-        unsigned long long volatileSingle;
-        unsigned long long volatileDouble;
-        unsigned long long aggregateSingle;
-        unsigned long long aggregateDouble;
+        unsigned long long volatileSingle = 0;
+        unsigned long long volatileDouble = 0;
+        unsigned long long aggregateSingle = 0;
+        unsigned long long aggregateDouble = 0;
     };
 
     struct ProcessInfo {
-        unsigned int pid;
-        unsigned long long usedMemory; // Bytes
-        std::string name; // Need to fetch process name too if possible, or just PID
+        unsigned int pid = 0;
+        unsigned long long usedMemory = 0; // Bytes
+        std::string name = "";
     };
 
     unsigned int getTemperature(nvmlDevice_t handle) const;
@@ -71,6 +71,7 @@ public:
 
     void setFanSpeed(nvmlDevice_t handle, unsigned int speedPercent);
     void setPowerLimit(nvmlDevice_t handle, unsigned int watts);
+    void getPowerConstraints(nvmlDevice_t handle, unsigned int& minW, unsigned int& maxW) const;
     void restoreAutoFans(nvmlDevice_t handle);
     unsigned long long getThrottleReasons(nvmlDevice_t handle) const;
 

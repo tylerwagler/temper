@@ -6,9 +6,10 @@
 
 namespace temper {
 
-HostMonitor::HostMonitor() 
-    : prevIdle_(0), prevTotal_(0), metrics_{0} {
-    // Initial read for CPU delta
+HostMonitor::HostMonitor()
+    : prevIdle_(0), prevTotal_(0), metrics_() {
+    // Initial reads
+    readHostname();
     readCpuStats();
 }
 
@@ -96,6 +97,15 @@ void HostMonitor::readUptime() {
     double uptimeSecs;
     if (file >> uptimeSecs) {
         metrics_.uptime = (unsigned long long)uptimeSecs;
+    }
+}
+
+void HostMonitor::readHostname() {
+    char hostname[256];
+    if (gethostname(hostname, sizeof(hostname)) == 0) {
+        metrics_.hostname = std::string(hostname);
+    } else {
+        metrics_.hostname = "unknown";
     }
 }
 

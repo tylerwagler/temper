@@ -75,7 +75,7 @@ std::string NVMLManager::getName(nvmlDevice_t handle) const {
 }
 
 NVMLManager::Clocks NVMLManager::getClocks(nvmlDevice_t handle) const {
-    Clocks c = {0};
+    Clocks c;
     // Current
     nvmlDeviceGetClockInfo(handle, NVML_CLOCK_GRAPHICS, &c.graphics);
     nvmlDeviceGetClockInfo(handle, NVML_CLOCK_MEM, &c.memory);
@@ -91,7 +91,7 @@ NVMLManager::Clocks NVMLManager::getClocks(nvmlDevice_t handle) const {
 }
 
 NVMLManager::PcieInfo NVMLManager::getPcieInfo(nvmlDevice_t handle) const {
-    PcieInfo p = {0};
+    PcieInfo p;
     nvmlDeviceGetPcieThroughput(handle, NVML_PCIE_UTIL_TX_BYTES, &p.txThroughput); // KB/s
     nvmlDeviceGetPcieThroughput(handle, NVML_PCIE_UTIL_RX_BYTES, &p.rxThroughput); // KB/s
     nvmlDeviceGetCurrPcieLinkGeneration(handle, &p.gen);
@@ -100,7 +100,7 @@ NVMLManager::PcieInfo NVMLManager::getPcieInfo(nvmlDevice_t handle) const {
 }
 
 NVMLManager::EccCounts NVMLManager::getEccCounts(nvmlDevice_t handle) const {
-    EccCounts e = {0};
+    EccCounts e;
     // Volatile (since boot)
     nvmlDeviceGetTotalEccErrors(handle, NVML_MEMORY_ERROR_TYPE_CORRECTED, NVML_VOLATILE_ECC, &e.volatileSingle);
     nvmlDeviceGetTotalEccErrors(handle, NVML_MEMORY_ERROR_TYPE_UNCORRECTED, NVML_VOLATILE_ECC, &e.volatileDouble);
@@ -196,6 +196,13 @@ void NVMLManager::setFanSpeed(nvmlDevice_t handle, unsigned int speedPercent) {
 void NVMLManager::setPowerLimit(nvmlDevice_t handle, unsigned int watts) {
     // NVML uses milliwatts
     checkResult(nvmlDeviceSetPowerManagementLimit(handle, watts * 1000), "Set power limit");
+}
+
+void NVMLManager::getPowerConstraints(nvmlDevice_t handle, unsigned int& minW, unsigned int& maxW) const {
+    unsigned int minMW = 0, maxMW = 0;
+    checkResult(nvmlDeviceGetPowerManagementLimitConstraints(handle, &minMW, &maxMW), "Get power constraints");
+    minW = minMW / 1000;
+    maxW = maxMW / 1000;
 }
 
 void NVMLManager::restoreAutoFans(nvmlDevice_t handle) {

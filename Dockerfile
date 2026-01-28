@@ -10,7 +10,7 @@ RUN make NVML_CFLAGS="-I/usr/local/cuda/targets/x86_64-linux/include" NVML_LIBS=
 # Runtime stage
 FROM nvidia/cuda:13.1.1-base-ubuntu24.04
 
-RUN apt-get update && apt-get install -y ipmitool sshpass openssh-client && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y freeipmi-tools curl jq && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY --from=builder /usr/src/nvml-tool/build/temper /app/temper
