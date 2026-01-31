@@ -15,14 +15,15 @@ LlamaMonitor::LlamaMonitor() : running_(false) {
     metrics_.slotsUsed = 0;
     metrics_.slotsTotal = 0;
     metrics_.modelPath = "";
-    
+    metrics_.load_progress = 0.0;
+
     metrics_.prompt_tokens_total = 0;
     metrics_.tokens_predicted_total = 0;
     metrics_.prompt_seconds_total = 0;
     metrics_.tokens_predicted_seconds_total = 0;
     metrics_.n_decode_total = 0;
     metrics_.n_busy_slots_per_decode = 0;
-    
+
     metrics_.prompt_tokens_seconds = 0;
     metrics_.predicted_tokens_seconds = 0;
     metrics_.kv_cache_usage_ratio = 0;
@@ -258,46 +259,90 @@ void LlamaMonitor::checkStatus() {
         bool foundLoading = false;
         bool foundLoaded = false;
         std::string detectedId = "";
-        
-        // Check for loading first
-        if (modelsJson.find("\"value\": \"loading\"") != std::string::npos || modelsJson.find("\"value\":\"loading\"") != std::string::npos) {
-            foundLoading = true;
-        } 
-        // Check for loaded
-        else if (modelsJson.find("\"value\": \"loaded\"") != std::string::npos || modelsJson.find("\"value\":\"loaded\"") != std::string::npos) {
-            foundLoaded = true;
+
+        // Find the model ID that corresponds to the loading or loaded status
+        // Look for pattern: "id": "MODEL_NAME", ... "status": {"value": "loading"|"loaded"}
+        size_t searchPos = 0;
+        while (searchPos < modelsJson.length()) {
+            size_t idPos = modelsJson.find("\"id\":", searchPos);
+            if (idPos == std::string::npos) break;
+
+            // Extract the ID
+            size_t q1 = modelsJson.find("\"", idPos + 5);
+            size_t q2 = modelsJson.find("\"", q1 + 1);
+            if (q1 == std::string::npos || q2 == std::string::npos) break;
+
+            std::string candidateId = modelsJson.substr(q1 + 1, q2 - q1 - 1);
+
+            // Find the next status field (should be in the same model object)
+            size_t statusPos = modelsJson.find("\"status\":", q2);
+            if (statusPos == std::string::npos || statusPos > q2 + 500) {
+                searchPos = q2;
+                continue;
+            }
+
+            // Check if this model is loading or loaded
+            size_t valuePos = modelsJson.find("\"value\":", statusPos);
+            if (valuePos != std::string::npos && valuePos < statusPos + 100) {
+                size_t v1 = modelsJson.find("\"", valuePos + 8);
+                size_t v2 = modelsJson.find("\"", v1 + 1);
+                if (v1 != std::string::npos && v2 != std::string::npos) {
+                    std::string statusValue = modelsJson.substr(v1 + 1, v2 - v1 - 1);
+                    if (statusValue == "loading") {
+                        foundLoading = true;
+                        detectedId = candidateId;
+                        break;
+                    } else if (statusValue == "loaded" || statusValue == "ready") {
+                        foundLoaded = true;
+                        detectedId = candidateId;
+                        break;
+                    }
+                }
+            }
+
+            searchPos = q2;
         }
 
         if (!foundLoading && !foundLoaded) {
              // Success response but no loaded/loading models found.
              m.status = LlamaStatus::IDLE;
              m.modelName = "None";
+             m.load_progress = 0.0;
         } else {
-             // Extract ID roughly. 
-             // We assume 1 model max for now as per docker-compose.
-             // Find "id": "..."
-             size_t idPos = modelsJson.find("\"id\":");
-             if (idPos != std::string::npos) {
-                 size_t q1 = modelsJson.find("\"", idPos + 5);
-                 size_t q2 = modelsJson.find("\"", q1 + 1);
-                 if (q1 != std::string::npos && q2 != std::string::npos) {
-                     detectedId = modelsJson.substr(q1 + 1, q2 - q1 - 1);
-                 }
-             }
-             
              if (detectedId.empty()) detectedId = "Unknown";
              m.modelName = detectedId;
 
              if (foundLoading) {
                  m.status = LlamaStatus::LOADING;
-                 m.modelName = detectedId + " (Loading)";
+                 m.modelName = detectedId;
+
+                 // Extract load_progress from the status object in modelsJson
+                 // The statusPos variable from above points to the "status": position
+                 // We need to find "load_progress" within that status object
+                 size_t statusPos = modelsJson.find("\"status\":", modelsJson.find("\"id\":\"" + detectedId));
+                 if (statusPos != std::string::npos) {
+                     // Find the end of the status object (next closing brace)
+                     size_t statusEnd = modelsJson.find("}", statusPos);
+                     if (statusEnd != std::string::npos) {
+                         std::string statusBlock = modelsJson.substr(statusPos, statusEnd - statusPos);
+                         double progress = extractJsonNumber(statusBlock, "load_progress", 0, 0.0);
+                         m.load_progress = progress;
+                     } else {
+                         m.load_progress = 0.0;
+                     }
+                 } else {
+                     m.load_progress = 0.0;
+                 }
+
                  if (std::getenv("VERBOSE")) {
-                     std::cout << "[Llama] Model loading: " << detectedId << std::endl;
+                     std::cout << "[Llama] Model loading: " << detectedId
+                               << " (" << (m.load_progress * 100.0) << "%)" << std::endl;
                  }
              } else {
                  // Loaded.
                  m.status = LlamaStatus::READY;
                  m.modelName = detectedId;
+                 m.load_progress = 1.0;  // Fully loaded
 
                  if (std::getenv("VERBOSE")) {
                      std::cout << "[Llama] Model loaded: " << detectedId << std::endl;
@@ -372,8 +417,15 @@ void LlamaMonitor::checkStatus() {
                                   slot.kv_utilization = extractJsonNumber(kvJson, "utilization");
                                   slot.kv_cache_efficiency = extractJsonNumber(kvJson, "cache_efficiency");
 
-                                  // Use cells_used as tokens_cached for compatibility
-                                  slot.tokens_cached = slot.kv_cells_used;
+                                  // Calculate tokens_cached from the KV cache position range
+                                  // pos_max represents the highest position used, so total tokens = pos_max + 1
+                                  // (positions are 0-indexed, so pos 0 = 1 token)
+                                  if (slot.kv_pos_max >= 0) {
+                                      slot.tokens_cached = slot.kv_pos_max + 1;
+                                  } else {
+                                      // Fallback to cells_used if pos_max is invalid
+                                      slot.tokens_cached = slot.kv_cells_used;
+                                  }
                               }
                           } else {
                               // Fallback: no kv_cache object, set defaults

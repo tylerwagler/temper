@@ -49,7 +49,8 @@ struct LlamaMetrics {
     std::string modelPath;
     int slotsUsed;
     int slotsTotal;
-    
+    double load_progress;  // 0.0-1.0, only set when status == LOADING
+
     // Prometheus Metrics
     long long prompt_tokens_total;
     long long tokens_predicted_total;
@@ -57,7 +58,7 @@ struct LlamaMetrics {
     double tokens_predicted_seconds_total;
     long long n_decode_total;
     double n_busy_slots_per_decode;
-    
+
     double prompt_tokens_seconds;
     double predicted_tokens_seconds;
     double kv_cache_usage_ratio;
@@ -65,10 +66,10 @@ struct LlamaMetrics {
     int requests_processing;
     int requests_deferred;
     int n_tokens_max;
-    
+
     // Props
     int n_ctx;
-    
+
     // Per-slot metrics
     std::vector<LlamaSlotMetrics> slots;
 };

@@ -58,6 +58,7 @@ std::string MetricServer::buildJson(const std::vector<GpuMetrics>& metrics, cons
 
     oss << "\"ai_service\": {"
         << "\"status\":\"" << statusStr << "\","
+        << "\"load_progress\":" << llama.load_progress << ","
         << "\"model\":\"" << llama.modelName << "\","
         << "\"model_path\":\"" << llama.modelPath << "\","
         << "\"slots_used\":" << llama.slotsUsed << ","
